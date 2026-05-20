@@ -1,3 +1,8 @@
+---
+name: mailtester
+description: AI agent skill for diagnosing SMTP/IMAP connectivity, authentication, and delivery issues using the go-mailtester CLI. Trigger when user mentions SMTP, IMAP, mail servers, email testing, TLS negotiation, STARTTLS, port 25/587/465/993/143, or authentication failures with mail services.
+---
+
 # mailtester
 
 AI agent skill for using the `go-mailtester` CLI SMTP testing tool.

@@ -4,15 +4,21 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/btafoya/go-mailtester)](https://goreportcard.com/report/github.com/btafoya/go-mailtester)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A Go CLI tool for testing SMTP and IMAP servers. For SMTP, it exercises every layer: raw TCP, STARTTLS, implicit TLS, authentication, manual MAIL/RCPT/DATA pipelines, and high-level `SendMail` helpers. For IMAP, it tests connection, STARTTLS, implicit TLS, authentication, mailbox listing, status, and message fetching. Built on [`github.com/emersion/go-smtp`](https://github.com/emersion/go-smtp) and [`github.com/emersion/go-imap`](https://github.com/emersion/go-imap).
+Tired of guessing why your emails aren't sending? **go-mailtester** is a Go CLI tool that diagnoses SMTP and IMAP servers layer by layer, so you know exactly what's broken.
+
+For SMTP, it tests everything from raw TCP connections up through STARTTLS negotiation, implicit TLS, authentication, and actually sending messages. For IMAP, it checks connections, TLS, authentication, mailbox listing, status, and message fetching.
+
+Built on top of the excellent [`github.com/emersion/go-smtp`](https://github.com/emersion/go-smtp) and [`github.com/emersion/go-imap`](https://github.com/emersion/go-imap) libraries.
 
 ## Install
+
+The fastest way to get started:
 
 ```bash
 go install github.com/btafoya/go-mailtester@latest
 ```
 
-Or clone and build:
+Or if you prefer to build from source:
 
 ```bash
 git clone https://github.com/btafoya/go-mailtester.git
@@ -20,33 +26,62 @@ cd go-mailtester
 go build -o mailtester .
 ```
 
-## Quick Start
+### AI Agent Skill
+
+You can also install go-mailtester as a skill for Claude Code or other compatible agents:
 
 ```bash
-# Connectivity check
-mailtester -host smtp.gmail.com -port 587 -mode connection
+npx skills add btafoya/go-mailtester
+```
 
-# Full SMTP test suite with STARTTLS + auth + send
+Privacy-conscious? Disable telemetry:
+
+```bash
+DISABLE_TELEMETRY=1 npx skills add btafoya/go-mailtester
+```
+
+After installing, just invoke `/mailtester` or let it trigger automatically when you're debugging email issues.
+
+## Quick Start
+
+**Check if a server is reachable:**
+
+```bash
+mailtester -host smtp.gmail.com -port 587 -mode connection
+```
+
+**Run the full SMTP diagnostic suite:**
+
+```bash
 mailtester -host smtp.gmail.com -port 587 -starttls \
   -from me@example.com -to you@example.net \
   -user me -pass secret -mode all
+```
 
-# Implicit TLS on port 465
+**Test implicit TLS (port 465):**
+
+```bash
 mailtester -host smtp.gmail.com -port 465 -tls \
   -from me@example.com -to you@example.net \
   -user me -pass secret -mode send
+```
 
-# IMAP connectivity check
+**Check IMAP connectivity:**
+
+```bash
 mailtester -host imap.gmail.com -port 993 -tls -mode imap-connection
+```
 
-# Full IMAP test suite
+**Run the full IMAP diagnostic suite:**
+
+```bash
 mailtester -host imap.gmail.com -port 993 -tls \
   -user me -pass secret -mode imap-all
 ```
 
 ## Test Modes
 
-Use `-mode` to select which layer to exercise. Default is `all` (SMTP only). Use `imap-all` for IMAP.
+Use `-mode` to pick which layer you want to exercise. The default is `all` (SMTP tests only) — use `imap-all` for IMAP.
 
 | Mode | What it tests |
 |------|---------------|
