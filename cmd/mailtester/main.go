@@ -102,6 +102,11 @@ func parseFlags() *Config {
 
 	flag.Parse()
 
+	if len(os.Args) == 1 {
+		flag.Usage()
+		os.Exit(0)
+	}
+
 	if toStr != "" {
 		cfg.To = splitEmails(toStr)
 	}
