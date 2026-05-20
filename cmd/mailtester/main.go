@@ -100,6 +100,15 @@ func parseFlags() *Config {
 	flag.StringVar(&cfg.Helo, "helo", "go-mailtester", "HELO/EHLO hostname")
 	flag.StringVar(&cfg.Mailbox, "mailbox", "INBOX", "IMAP mailbox to test")
 
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "go-mailtester - CLI tool for testing SMTP and IMAP servers\n")
+		fmt.Fprintf(os.Stderr, "Developed by Brian Tafoya <btafoya@briantafoya.com>\n")
+		fmt.Fprintf(os.Stderr, "License: MIT\n")
+		fmt.Fprintf(os.Stderr, "Issues: https://github.com/btafoya/go-mailtester/issues\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	if len(os.Args) == 1 {
