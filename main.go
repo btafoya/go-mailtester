@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 )
@@ -31,6 +33,7 @@ type Config struct {
 	Timeout     time.Duration
 	TestMode    string
 	Helo        string
+	Mailbox     string
 }
 
 func main() {
@@ -53,6 +56,22 @@ func main() {
 		testStartTLS(cfg)
 	case "raw":
 		testRawSession(cfg)
+	case "imap-connection":
+		testIMAPConnection(cfg)
+	case "imap-starttls":
+		testIMAPStartTLS(cfg)
+	case "imap-ssl":
+		testIMAPSSL(cfg)
+	case "imap-auth":
+		testIMAPAuth(cfg)
+	case "imap-list":
+		testIMAPList(cfg)
+	case "imap-status":
+		testIMAPStatus(cfg)
+	case "imap-fetch":
+		testIMAPFetch(cfg)
+	case "imap-all":
+		runAllIMAPTests(cfg)
 	case "all":
 		runAllTests(cfg)
 	default:
@@ -64,21 +83,22 @@ func parseFlags() *Config {
 	cfg := &Config{}
 
 	var toStr string
-	flag.StringVar(&cfg.Host, "host", "localhost", "SMTP server hostname")
-	flag.IntVar(&cfg.Port, "port", 25, "SMTP server port")
+	flag.StringVar(&cfg.Host, "host", "localhost", "SMTP/IMAP server hostname")
+	flag.IntVar(&cfg.Port, "port", 25, "SMTP/IMAP server port")
 	flag.StringVar(&cfg.From, "from", "", "Sender email address")
 	flag.StringVar(&toStr, "to", "", "Recipient email address(es), comma-separated")
 	flag.StringVar(&cfg.Subject, "subject", "SMTP Test", "Email subject")
 	flag.StringVar(&cfg.Body, "body", "This is a test email from go-mailtester.", "Email body")
 	flag.StringVar(&cfg.AuthType, "auth", "plain", "Auth type: plain, login, cram-md5, none")
-	flag.StringVar(&cfg.Username, "user", "", "SMTP username")
-	flag.StringVar(&cfg.Password, "pass", "", "SMTP password")
+	flag.StringVar(&cfg.Username, "user", "", "SMTP/IMAP username")
+	flag.StringVar(&cfg.Password, "pass", "", "SMTP/IMAP password")
 	flag.BoolVar(&cfg.UseTLS, "tls", false, "Use implicit TLS")
 	flag.BoolVar(&cfg.UseStartTLS, "starttls", false, "Use STARTTLS")
 	flag.BoolVar(&cfg.SkipVerify, "skip-verify", false, "Skip TLS certificate verification")
 	flag.DurationVar(&cfg.Timeout, "timeout", 30*time.Second, "Connection timeout")
-	flag.StringVar(&cfg.TestMode, "mode", "all", "Test mode: connection, auth, send, sendmail, sendmailtls, ssl, starttls, raw, all")
+	flag.StringVar(&cfg.TestMode, "mode", "all", "Test mode: connection, auth, send, sendmail, sendmailtls, ssl, starttls, raw, imap-connection, imap-starttls, imap-ssl, imap-auth, imap-list, imap-status, imap-fetch, imap-all, all")
 	flag.StringVar(&cfg.Helo, "helo", "go-mailtester", "HELO/EHLO hostname")
+	flag.StringVar(&cfg.Mailbox, "mailbox", "INBOX", "IMAP mailbox to test")
 
 	flag.Parse()
 
@@ -481,5 +501,224 @@ func buildMessage(cfg *Config) string {
 
 func generateMsgID() string {
 	return fmt.Sprintf("%d.%d", time.Now().Unix(), os.Getpid())
+}
+
+func dialIMAP(cfg *Config) (*imapclient.Client, error) {
+	opts := &imapclient.Options{
+		TLSConfig: tlsConfig(cfg),
+		Dialer:    &net.Dialer{Timeout: cfg.Timeout},
+	}
+	if cfg.UseTLS {
+		return imapclient.DialTLS(addr(cfg), opts)
+	}
+	if cfg.UseStartTLS {
+		return imapclient.DialStartTLS(addr(cfg), opts)
+	}
+	return imapclient.DialInsecure(addr(cfg), opts)
+}
+
+func printIMAPCaps(caps imap.CapSet) {
+	fmt.Println("Capabilities:")
+	for c := range caps {
+		fmt.Printf("  %s\n", c)
+	}
+}
+
+func testIMAPConnection(cfg *Config) {
+	fmt.Printf("Testing IMAP connection to %s...\n", addr(cfg))
+	client, err := imapclient.DialInsecure(addr(cfg), &imapclient.Options{
+		Dialer: &net.Dialer{Timeout: cfg.Timeout},
+	})
+	if err != nil {
+		log.Fatalf("IMAP connection failed: %v", err)
+	}
+	defer client.Close()
+	fmt.Println("IMAP connection: OK")
+	printIMAPCaps(client.Caps())
+}
+
+func testIMAPStartTLS(cfg *Config) {
+	fmt.Printf("Testing IMAP STARTTLS to %s...\n", addr(cfg))
+	client, err := imapclient.DialStartTLS(addr(cfg), &imapclient.Options{
+		TLSConfig: tlsConfig(cfg),
+		Dialer:    &net.Dialer{Timeout: cfg.Timeout},
+	})
+	if err != nil {
+		log.Fatalf("IMAP STARTTLS failed: %v", err)
+	}
+	defer client.Close()
+	fmt.Println("STARTTLS negotiation: OK")
+	printIMAPCaps(client.Caps())
+}
+
+func testIMAPSSL(cfg *Config) {
+	fmt.Printf("Testing IMAP implicit TLS to %s...\n", addr(cfg))
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: cfg.Timeout}, "tcp", addr(cfg), tlsConfig(cfg))
+	if err != nil {
+		log.Fatalf("TLS dial failed: %v", err)
+	}
+	defer conn.Close()
+	fmt.Println("TLS connection: OK")
+	state := conn.ConnectionState()
+	fmt.Printf("TLS Version: %x\n", state.Version)
+	fmt.Printf("Cipher Suite: %x\n", state.CipherSuite)
+	fmt.Printf("Server Name: %s\n", state.ServerName)
+	fmt.Printf("Handshake Complete: %v\n", state.HandshakeComplete)
+	client := imapclient.New(conn, &imapclient.Options{})
+	defer client.Close()
+	if err := client.WaitGreeting(); err != nil {
+		log.Fatalf("Greeting failed: %v", err)
+	}
+	fmt.Println("Greeting: OK")
+	printIMAPCaps(client.Caps())
+	auth, err := getAuth(cfg)
+	if err != nil {
+		log.Fatalf("Auth setup failed: %v", err)
+	}
+	if auth != nil {
+		if err := client.Authenticate(auth); err != nil {
+			log.Fatalf("Authentication failed: %v", err)
+		}
+		fmt.Println("Authentication: OK")
+	}
+}
+
+func testIMAPAuth(cfg *Config) {
+	fmt.Printf("Testing IMAP authentication to %s...\n", addr(cfg))
+	client, err := dialIMAP(cfg)
+	if err != nil {
+		log.Fatalf("Dial failed: %v", err)
+	}
+	defer client.Close()
+	auth, err := getAuth(cfg)
+	if err != nil {
+		log.Fatalf("Auth setup failed: %v", err)
+	}
+	if auth == nil {
+		fmt.Println("Auth type 'none' - skipping authentication")
+		return
+	}
+	if err := client.Authenticate(auth); err != nil {
+		log.Fatalf("Authentication failed: %v", err)
+	}
+	fmt.Println("Authentication: OK")
+}
+
+func testIMAPList(cfg *Config) {
+	fmt.Printf("Testing IMAP list to %s...\n", addr(cfg))
+	client, err := dialIMAP(cfg)
+	if err != nil {
+		log.Fatalf("Dial failed: %v", err)
+	}
+	defer client.Close()
+	auth, err := getAuth(cfg)
+	if err != nil {
+		log.Fatalf("Auth setup failed: %v", err)
+	}
+	if auth != nil {
+		if err := client.Authenticate(auth); err != nil {
+			log.Fatalf("Authentication failed: %v", err)
+		}
+		fmt.Println("Authentication: OK")
+	}
+	mailboxes, err := client.List("", "%", nil).Collect()
+	if err != nil {
+		log.Fatalf("LIST failed: %v", err)
+	}
+	fmt.Println("Mailboxes:")
+	for _, m := range mailboxes {
+		fmt.Printf("  %s\n", m.Mailbox)
+	}
+}
+
+func testIMAPStatus(cfg *Config) {
+	fmt.Printf("Testing IMAP status to %s...\n", addr(cfg))
+	client, err := dialIMAP(cfg)
+	if err != nil {
+		log.Fatalf("Dial failed: %v", err)
+	}
+	defer client.Close()
+	auth, err := getAuth(cfg)
+	if err != nil {
+		log.Fatalf("Auth setup failed: %v", err)
+	}
+	if auth != nil {
+		if err := client.Authenticate(auth); err != nil {
+			log.Fatalf("Authentication failed: %v", err)
+		}
+		fmt.Println("Authentication: OK")
+	}
+	selected, err := client.Select(cfg.Mailbox, nil).Wait()
+	if err != nil {
+		log.Fatalf("SELECT failed: %v", err)
+	}
+	fmt.Printf("Mailbox %s selected\n", cfg.Mailbox)
+	fmt.Printf("Messages: %d\n", selected.NumMessages)
+	fmt.Printf("UIDNext: %d\n", selected.UIDNext)
+	fmt.Printf("UIDValidity: %d\n", selected.UIDValidity)
+}
+
+func testIMAPFetch(cfg *Config) {
+	fmt.Printf("Testing IMAP fetch to %s...\n", addr(cfg))
+	client, err := dialIMAP(cfg)
+	if err != nil {
+		log.Fatalf("Dial failed: %v", err)
+	}
+	defer client.Close()
+	auth, err := getAuth(cfg)
+	if err != nil {
+		log.Fatalf("Auth setup failed: %v", err)
+	}
+	if auth != nil {
+		if err := client.Authenticate(auth); err != nil {
+			log.Fatalf("Authentication failed: %v", err)
+		}
+		fmt.Println("Authentication: OK")
+	}
+	selected, err := client.Select(cfg.Mailbox, nil).Wait()
+	if err != nil {
+		log.Fatalf("SELECT failed: %v", err)
+	}
+	if selected.NumMessages == 0 {
+		fmt.Println("No messages to fetch")
+		return
+	}
+	seqSet := imap.SeqSetNum(1)
+	messages, err := client.Fetch(seqSet, &imap.FetchOptions{
+		Envelope: true,
+		Flags:    true,
+	}).Collect()
+	if err != nil {
+		log.Fatalf("FETCH failed: %v", err)
+	}
+	if len(messages) > 0 {
+		msg := messages[0]
+		if msg.Envelope != nil {
+			fmt.Printf("Subject: %s\n", msg.Envelope.Subject)
+		}
+		if len(msg.Flags) > 0 {
+			fmt.Printf("Flags: %v\n", msg.Flags)
+		}
+	}
+}
+
+func runAllIMAPTests(cfg *Config) {
+	fmt.Println("=== Running all IMAP tests ===")
+	testIMAPConnection(cfg)
+	fmt.Println()
+	testIMAPStartTLS(cfg)
+	fmt.Println()
+	if cfg.UseTLS {
+		testIMAPSSL(cfg)
+		fmt.Println()
+	}
+	testIMAPAuth(cfg)
+	fmt.Println()
+	testIMAPList(cfg)
+	fmt.Println()
+	testIMAPStatus(cfg)
+	fmt.Println()
+	testIMAPFetch(cfg)
+	fmt.Println("=== All IMAP tests complete ===")
 }
 
