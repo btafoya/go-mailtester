@@ -15,7 +15,7 @@ Built on top of the excellent [`github.com/emersion/go-smtp`](https://github.com
 The fastest way to get started:
 
 ```bash
-go install github.com/btafoya/go-mailtester@latest
+go install github.com/btafoya/go-mailtester/cmd/mailtester@latest
 ```
 
 Or if you prefer to build from source:
@@ -23,7 +23,7 @@ Or if you prefer to build from source:
 ```bash
 git clone https://github.com/btafoya/go-mailtester.git
 cd go-mailtester
-go build -o mailtester .
+go build ./cmd/mailtester
 ```
 
 ### AI Agent Skill
