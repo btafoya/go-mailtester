@@ -1,5 +1,9 @@
 # go-mailtester
 
+![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/btafoya/go-mailtester)](https://goreportcard.com/report/github.com/btafoya/go-mailtester)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A Go CLI tool for testing SMTP servers at every layer: raw TCP, STARTTLS, implicit TLS, authentication, manual MAIL/RCPT/DATA pipelines, and high-level `SendMail` helpers. Built on [`github.com/emersion/go-smtp`](https://github.com/emersion/go-smtp).
 
 ## Install
@@ -131,4 +135,4 @@ mailtester -host smtp.example.com -port 25 -mode raw
 
 ## License
 
-MIT
+[MIT](LICENSE)
